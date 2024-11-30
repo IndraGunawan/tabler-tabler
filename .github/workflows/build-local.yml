@@ -1,0 +1,71 @@
+name: Build Local
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tabler ref'
+        required: true
+        default: 'dev'
+
+env:
+  NODE: 18
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          repository: tabler/tabler
+          ref: ${{ inputs.ref }}
+
+      - name: package.json info
+        id: info
+        uses: jaywcjlove/github-action-package@main
+        with:
+          version: "${{ steps.checkout.outputs.commit }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "${{ env.NODE }}"
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2
+          bundler-cache: true
+
+      - name: Exclude bootstrap
+        run: |
+          sed -i 's/^globalThis.bootstrap = bootstrap/\/\/ globalThis.bootstrap = bootstrap;/' src/js/tabler.js
+          sed -i 's/^import \* as bootstrap from "bootstrap"/\/\/ import \* as bootstrap from "bootstrap";/' src/js/tabler.js
+          cat src/js/tabler.js
+
+      - run: ruby --version
+      - run: node --version
+
+      - name: Install pnpm dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabler-${{ steps.checkout.outputs.commit }}
+          path: |
+            dist/css
+            dist/js
